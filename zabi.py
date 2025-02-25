@@ -66,7 +66,7 @@ cluster = 3
 # Step 3: Apply clustering (KMeans) to anomalous data
 def cluster_anomalous_data(df):
     anomalous_data = df[df['Anomaly'] == 'Weird']
-    kmeans = KMeans(n_clusters=5, random_state=42)
+    kmeans = KMeans(n_clusters=3, random_state=42)
     anomalous_data['Cluster'] = kmeans.fit_predict(anomalous_data[['Mean', 'StdDev', 'Correlation', 'MaxJump']])
     return anomalous_data
 
@@ -85,7 +85,7 @@ def plot_clusters_individually(df, raw_data):
     weird_cases = df[df['Anomaly'] == 'Weird']
     
     # Iterate through each cluster and plot it separately
-    for cluster in range(5):  # We have 3 clusters
+    for cluster in range(3):  # We have 3 clusters
         cluster_data = weird_cases[weird_cases['Cluster'] == cluster]
         
         plt.figure(figsize=(10, 6))
@@ -119,6 +119,34 @@ anomalous_data = cluster_anomalous_data(data_df)
 
 # Plotting the results
 plot_clusters_individually(anomalous_data, raw_data)
+# Cluster Name Mapping
+cluster_names = {
+    0: 'Stable Behavior',
+    1: 'High Variance',
+    2: 'Erratic Spikes'
+}
+
+# Assign the names to the clusters
+anomalous_data['Cluster_Name'] = anomalous_data['Cluster'].map(cluster_names)
+
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+
+# Calculate WCSS for a range of clusters
+wcss = []
+for i in range(1, 11):  # Checking from 1 to 10 clusters
+    kmeans = KMeans(n_clusters=i, random_state=42)
+    kmeans.fit(data_df[['Mean', 'StdDev', 'Correlation', 'MaxJump']])
+    wcss.append(kmeans.inertia_)
+
+# Plot the Elbow Method graph
+plt.plot(range(1, 11), wcss)
+plt.title('Elbow Method')
+plt.xlabel('Number of Clusters')
+plt.ylabel('WCSS')
+plt.show()
 
 # Save the anomalous data with clusters to Excel
-save_to_excel(anomalous_data[['Device', 'Radius', 'Mean', 'StdDev', 'Correlation', 'MaxJump', 'Cluster']], 'output_file.xlsx')
+save_to_excel(anomalous_data[['Device', 'Radius', 'Mean', 'StdDev', 'Correlation', 'MaxJump', 'Cluster' , 'Cluster_Name']], 'output_file.xlsx')
+
+
