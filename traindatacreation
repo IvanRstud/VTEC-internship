@@ -1,0 +1,82 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import cv2
+import os
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
+from skimage.color import rgb2gray
+from scipy.stats import spearmanr
+
+# Directory setup
+test_results_path = "test_results/"
+os.makedirs(test_results_path, exist_ok=True)
+
+# List of files with their respective skiprows values
+files = {
+    "R1C0Q0": ('P22406121-3_R1C0Q0_VQCOP-B004_2025-02-16-17-06-57.csv', 18),
+    "R1C1Q0": ('P22406121-3_R1C1Q0_VQCOP-B004_2025-02-16-17-13-28.csv', 19)
+    
+}
+
+# Selected radiuses based on anomalies in the report
+response_variables = [
+    'Dark current-r10.0', 'Dark current-r20.0', 'Dark current-r30.0', 
+    'Dark current-r40.0', 'Dark current-r50.0', 'Dark current-r80.0', 
+    'Dark current-r100.0', 'Dark current-r150.0', 'Dark current-r200.0', 
+    'Dark current-r250.0'
+]
+
+def preprocess_data(files):
+    data = []
+    raw_data = {}
+    for label, (filename, skiprows) in files.items():
+        df = pd.read_csv(filename, skiprows=skiprows).dropna()
+        raw_data[label] = df
+        
+        for response in response_variables:
+            if response in df.columns:
+                mean_current = np.mean(df[response])
+                std_current = np.std(df[response])
+                correlation, _ = spearmanr(df['Voltage step:'], df[response])
+                diffs = np.abs(np.diff(df[response]))
+                max_jump = np.max(diffs) if len(diffs) > 0 else 0
+                
+                data.append([label, response, mean_current, std_current, correlation, max_jump])
+    
+    return pd.DataFrame(data, columns=['Device', 'Radius', 'Mean', 'StdDev', 'Correlation', 'MaxJump']), raw_data
+
+def detect_anomalies(df):
+    scaler = StandardScaler()
+    X = scaler.fit_transform(df[['Mean', 'StdDev', 'Correlation', 'MaxJump']])
+    model = IsolationForest(contamination=0.2, random_state=2)
+    df['Anomaly'] = model.fit_predict(X)
+    df['Anomaly'] = df['Anomaly'].map({1: 'Good', -1: 'Weird'})
+    return df
+
+def save_test_plot(voltage, current, label, plot_id):
+    label_path = os.path.join(test_results_path, label)
+    os.makedirs(label_path, exist_ok=True)
+    file_path = '/Users/ivan/Desktop/wierd ones/ffa'
+    
+    plt.figure()
+    plt.scatter(voltage, current)
+    plt.xlabel("Voltage Step")
+    plt.ylabel("Dark Current")
+    plt.title(f"Test Result")
+    plt.savefig(file_path)
+    plt.close()
+    print(f"Saved: {file_path}")
+
+# Load and process data
+data_df, raw_data = preprocess_data(files)
+data_df = detect_anomalies(data_df)
+
+# Save plots for each test result
+for idx, row in data_df.iterrows():
+    device = row['Device']
+    radius = row['Radius']
+    label = row['Anomaly']
+    voltage = raw_data[device]['Voltage step:']
+    current = raw_data[device][radius]
+    save_test_plot(voltage, current, label, idx)

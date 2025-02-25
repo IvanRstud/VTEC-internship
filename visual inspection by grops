@@ -1,0 +1,73 @@
+import os
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from skimage.feature import hog
+from skimage.color import rgb2gray
+import joblib
+
+# Paths to training data
+data_path = "test_results_2/"
+categories = ["Good", "Flat Response","High Deviation","Jumping Behavior","Sudden Drops"]
+
+def extract_features(image_path):
+    print(f"Loading image: {image_path}")  # Debugging print
+    image = cv2.imread(image_path)
+    
+    if image is None:
+        print(f"Error: Could not load image {image_path}")
+        return None  # Skip invalid images
+    
+    gray = rgb2gray(image)
+    features, _ = hog(gray, pixels_per_cell=(8, 8), cells_per_block=(2, 2), visualize=True)
+    return features
+
+def load_data():
+    X, y = [], []
+    for label, category in enumerate(categories):
+        category_path = os.path.join(data_path, category)
+        if os.path.exists(category_path):
+            for img_file in os.listdir(category_path):
+                if not img_file.lower().endswith((".png", ".jpg", ".jpeg")):
+                    print(f"Skipping non-image file: {img_file}")
+                    continue  # Skip non-image files
+                
+                img_path = os.path.join(category_path, img_file)
+                features = extract_features(img_path)
+                
+                if features is not None:  # Ensure valid features
+                    X.append(features)
+                    y.append(label)
+    return np.array(X), np.array(y)
+
+# Load dataset
+X, y = load_data()
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train model
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+
+# Evaluate model
+accuracy = model.score(X_test, y_test)
+print(f"Model accuracy: {accuracy:.2f}")
+
+# Save model
+joblib.dump(model, "plot_classifier.pkl")
+print("Model saved as plot_classifier.pkl")
+
+def classify_plot(image_path):
+    features = extract_features(image_path)
+    if features is None:
+        return "Invalid Image"
+    
+    features = features.reshape(1, -1)
+    prediction = model.predict(features)[0]
+    return categories[prediction]
+
+# Example usage:
+
+new_plot = "/Users/ivan/VTEC-internship/test_results_2/Sudden Drops/plot_149.png"
+print(f"Predicted class: {classify_plot(new_plot)}")
