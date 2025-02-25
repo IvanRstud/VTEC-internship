@@ -61,7 +61,8 @@ def detect_anomalies(df):
     
     model = IsolationForest(contamination=0.1, random_state=42)
     df['Anomaly'] = model.fit_predict(X)
-    df['Anomaly'] = df['Anomaly'].map({1: 'Good', -1: 'Weird'})
+    # 0 is it is good, 1 if it is wierd
+    df['Anomaly'] = df['Anomaly'].map({1: 0, -1: 1})
     
     return df
 
@@ -87,3 +88,9 @@ print(data_df)
 
 # Plot weird cases
 plot_weird_cases(data_df, raw_data)
+
+def save_results_to_excel(df, filename="anomaly_detection_results.xlsx"):
+    df.to_excel(filename, index=False)
+    print(f"Results saved to {filename}")
+
+save_results_to_excel(data_df)
