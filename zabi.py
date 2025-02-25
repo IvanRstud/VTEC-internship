@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 from scipy.stats import spearmanr
 
 # List of files with their respective skiprows values
@@ -32,6 +33,7 @@ response_variables = [
     'Dark current-r250.0'
 ]
 
+# Step 1: Preprocess data and extract features
 def preprocess_data(files):
     data = []
     raw_data = {}
@@ -40,86 +42,83 @@ def preprocess_data(files):
         df = df.dropna()
         raw_data[label] = df
         
-        # Calculate statistical features for anomaly detection
         for response in response_variables:
             if response in df.columns:
                 mean_current = np.mean(df[response])
                 std_current = np.std(df[response])
                 correlation, _ = spearmanr(df['Voltage step:'], df[response])
-                
-                # Identify large jumps or drops
                 diffs = np.abs(np.diff(df[response]))
                 max_jump = np.max(diffs) if len(diffs) > 0 else 0
-                
                 data.append([label, response, mean_current, std_current, correlation, max_jump])
                 
     return pd.DataFrame(data, columns=['Device', 'Radius', 'Mean', 'StdDev', 'Correlation', 'MaxJump']), raw_data
 
+# Step 2: Detect anomalies using Isolation Forest
 def detect_anomalies(df):
     scaler = StandardScaler()
     X = scaler.fit_transform(df[['Mean', 'StdDev', 'Correlation', 'MaxJump']])
-    
     model = IsolationForest(contamination=0.1, random_state=42)
     df['Anomaly'] = model.fit_predict(X)
     df['Anomaly'] = df['Anomaly'].map({1: 'Good', -1: 'Weird'})
-    
     return df
 
-# def plot_weird_cases(df, raw_data):
-#     weird_cases = df[df['Anomaly'] == 'Weird']
-#     for _, row in weird_cases.iterrows():
-#         device = row['Device']
-#         radius = row['Radius']
-#         plt.figure(figsize=(8, 5))
-#         plt.scatter(raw_data[device]['Voltage step:'], raw_data[device][radius], label=f'{device} - {radius}', color='red')
-#         plt.xlabel('Voltage Step')
-#         plt.ylabel('Dark Current')
-#         plt.title(f'Weird Behavior in {device} - {radius}')
-#         plt.legend()
-#         plt.show()
+cluster = 3
+# Step 3: Apply clustering (KMeans) to anomalous data
+def cluster_anomalous_data(df):
+    anomalous_data = df[df['Anomaly'] == 'Weird']
+    kmeans = KMeans(n_clusters=5, random_state=42)
+    anomalous_data['Cluster'] = kmeans.fit_predict(anomalous_data[['Mean', 'StdDev', 'Correlation', 'MaxJump']])
+    return anomalous_data
 
-# Run preprocessing and anomaly detection
-data_df, raw_data = preprocess_data(files)
-data_df = detect_anomalies(data_df)
-
-# Display results
-print(data_df)
-
-# Plot weird cases
-# plot_weird_cases(data_df, raw_data)
-
-from sklearn.ensemble import IsolationForest
-from sklearn.cluster import KMeans
+# Step 4: Plot all clusters individually
 import matplotlib.pyplot as plt
-import pandas as pd
 
-# Assuming you already have the preprocessed data in `data_df` with 'Mean', 'StdDev', 'Correlation', 'MaxJump'
-# Step 1: Anomaly detection using Isolation Forest
-anomaly_detector = IsolationForest(contamination=0.1, random_state=42)
-data_df['Anomaly'] = anomaly_detector.fit_predict(data_df[['Mean', 'StdDev', 'Correlation', 'MaxJump']])
+def plot_clusters_individually(df, raw_data):
+    """
+    Plot each cluster individually, showing the data points for each cluster in separate plots.
+    
+    Parameters:
+    df (pd.DataFrame): DataFrame containing the anomaly and cluster information.
+    raw_data (dict): A dictionary of raw data for each device.
+    """
+    # Filter out anomalous data
+    weird_cases = df[df['Anomaly'] == 'Weird']
+    
+    # Iterate through each cluster and plot it separately
+    for cluster in range(5):  # We have 3 clusters
+        cluster_data = weird_cases[weird_cases['Cluster'] == cluster]
+        
+        plt.figure(figsize=(10, 6))
+        
+        for _, row in cluster_data.iterrows():
+            device = row['Device']
+            radius = row['Radius']
+            
+            # Plot the data for each device and radius
+            plt.scatter(raw_data[device]['Voltage step:'], raw_data[device][radius], 
+                        label=f'{device} - {radius}')
+        
+        plt.xlabel('Voltage Step')
+        plt.ylabel('Dark Current')
+        plt.title(f'Cluster {cluster} - Anomalous Data')
+        plt.legend()
+        plt.show()
 
-# Step 2: Filter out the anomalies
-anomalous_data = data_df[data_df['Anomaly'] == -1]
+# Usage: After anomaly detection and clustering
+# plot_clusters_individually(anomalous_data, raw_data)
 
-# Step 3: Cluster the anomalous data using K-Means
-kmeans = KMeans(n_clusters=3, random_state=42)  # Adjust number of clusters based on your data
-anomalous_data['Cluster'] = kmeans.fit_predict(anomalous_data[['Mean', 'StdDev', 'Correlation', 'MaxJump']])
 
-# Step 4: Visualize the clusters of anomalies
-plt.figure(figsize=(8, 6))
-plt.scatter(anomalous_data['Mean'], anomalous_data['StdDev'], c=anomalous_data['Cluster'], cmap='viridis')
-plt.xlabel('Mean')
-plt.ylabel('StdDev')
-plt.title('Clusters of Anomalous Data')
-plt.colorbar(label='Cluster')
-plt.show()
-
-# Display the anomalous data with assigned clusters
-print(anomalous_data[['Device', 'Radius', 'Mean', 'StdDev', 'Correlation', 'MaxJump', 'Cluster']])
-
+# Step 5: Save the anomalous data to Excel
 def save_to_excel(data, filename):
-  
     data.to_excel(filename, index=False)
 
-# Usage example:
+# Running the full pipeline
+data_df, raw_data = preprocess_data(files)
+data_df = detect_anomalies(data_df)
+anomalous_data = cluster_anomalous_data(data_df)
+
+# Plotting the results
+plot_clusters_individually(anomalous_data, raw_data)
+
+# Save the anomalous data with clusters to Excel
 save_to_excel(anomalous_data[['Device', 'Radius', 'Mean', 'StdDev', 'Correlation', 'MaxJump', 'Cluster']], 'output_file.xlsx')
