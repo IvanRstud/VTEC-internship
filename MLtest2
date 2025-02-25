@@ -1,4 +1,3 @@
-#this test is shit do not use it pls
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -36,15 +35,8 @@ response_variables = [
 def preprocess_data(files):
     data = []
     raw_data = {}
-    
     for label, (filename, skiprows) in files.items():
-        print(f"Loading file: {filename}")  # Debugging
-        
         df = pd.read_csv(filename, skiprows=skiprows)
-        if df.empty:
-            print(f"Warning: {label} data is empty!")
-            continue  # Skip empty datasets
-        
         df = df.dropna()
         raw_data[label] = df
         
@@ -61,24 +53,23 @@ def preprocess_data(files):
                 
                 data.append([label, response, mean_current, std_current, correlation, max_jump])
                 
-    print(f"Total processed data points: {len(data)}")  # Debugging
     return pd.DataFrame(data, columns=['Device', 'Radius', 'Mean', 'StdDev', 'Correlation', 'MaxJump']), raw_data
+
+def detect_anomalies(df):
+    scaler = StandardScaler()
+    X = scaler.fit_transform(df[['Mean', 'StdDev', 'Correlation', 'MaxJump']])
+    
+    model = IsolationForest(contamination=0.1, random_state=42)
+    df['Anomaly'] = model.fit_predict(X)
+    df['Anomaly'] = df['Anomaly'].map({1: 'Good', -1: 'Weird'})
+    
+    return df
 
 def plot_weird_cases(df, raw_data):
     weird_cases = df[df['Anomaly'] == 'Weird']
-    
-    if weird_cases.empty:
-        print("No weird cases detected.")
-        return
-    
     for _, row in weird_cases.iterrows():
         device = row['Device']
         radius = row['Radius']
-        
-        if device not in raw_data or radius not in raw_data[device].columns:
-            print(f"Warning: Data missing for {device} - {radius}")
-            continue
-        
         plt.figure(figsize=(8, 5))
         plt.scatter(raw_data[device]['Voltage step:'], raw_data[device][radius], label=f'{device} - {radius}', color='red')
         plt.xlabel('Voltage Step')
@@ -91,8 +82,8 @@ def plot_weird_cases(df, raw_data):
 data_df, raw_data = preprocess_data(files)
 data_df = detect_anomalies(data_df)
 
-# Print summary
-print(data_df['Anomaly'].value_counts())
+# Display results
+print(data_df)
 
 # Plot weird cases
 plot_weird_cases(data_df, raw_data)
