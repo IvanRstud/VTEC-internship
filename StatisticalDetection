@@ -1,0 +1,73 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+import numpy as np
+import seaborn as sns
+
+from scipy.stats import shapiro, f_oneway
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.metrics import confusion_matrix, accuracy_score
+
+
+import math as m
+import scipy.stats as sc
+
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+# Read all the test result
+R1C0Q0 = pd.read_csv('P22406121-3_R1C0Q0_VQCOP-B004_2025-02-16-17-06-57.csv',skiprows =18)
+R1C1Q0 = pd.read_csv('P22406121-3_R1C1Q0_VQCOP-B004_2025-02-16-17-13-28.csv',skiprows =19)
+R1C1Q2 = pd.read_csv('P22406121-3_R1C1Q2_VQCOP-B004_2025-02-16-17-02-07.csv',skiprows =19)
+R1C2Q0 = pd.read_csv('P22406121-3_R1C2Q0_VQCOP-B004_2025-02-16-17-17-40.csv',skiprows =19)
+R1C4Q0 = pd.read_csv('P22406121-3_R1C4Q0_VQCOP-B004_2025-02-16-16-42-43.csv',skiprows =19)
+R1C4Q1 = pd.read_csv('P22406121-3_R1C4Q1_VQCOP-B004_2025-02-16-16-48-20.csv',skiprows =19)
+
+R1C4Q2 = pd.read_csv('P22406121-3_R1C4Q2_VQCOP-B004_2025-02-16-16-57-42.csv',skiprows =19)
+R1C5Q0 = pd.read_csv('P22406121-3_R1C5Q0_VQCOP-B004_2025-02-16-16-32-20.csv',skiprows =19)
+
+R1C5Q1 = pd.read_csv('P22406121-3_R1C5Q1_VQCOP-B004_2025-02-16-16-37-27.csv',skiprows =19)
+R1C5Q2 = pd.read_csv('P22406121-3_R1C5Q2_VQCOP-B004_2025-02-16-16-52-53.csv',skiprows =19)
+R1C6Q0 = pd.read_csv('P22406121-3_R1C6Q0_VQCOP-B004_2025-02-16-16-20-04.csv',skiprows =19)
+R1C6Q1 = pd.read_csv('P22406121-3_R1C6Q1_VQCOP-B004_2025-02-16-16-25-37.csv',skiprows =19)
+R1C7Q0 = pd.read_csv('P22406121-3_R1C7Q0_VQCOP-B004_2025-02-16-16-15-25.csv',skiprows =19)
+R1C8Q0 = pd.read_csv('P22406121-3_R1C8Q0_VQCOP-B004_2025-02-16-16-00-16.csv',skiprows=19)
+R1C8Q1 = pd.read_csv('P22406121-3_R1C8Q1_VQCOP-B004_2025-02-16-16-04-57.csv',skiprows=19)
+
+
+
+
+df = R1C0Q0 
+# Define the response variable columns
+response_variables = [
+    'Dark current-r10.0', 'Dark current-r20.0', 'Dark current-r30.0', 
+    'Dark current-r40.0', 'Dark current-r50.0', 'Dark current-r80.0', 
+    'Dark current-r100.0', 'Dark current-r150.0', 'Dark current-r200.0', 
+    'Dark current-r250.0'
+
+]
+
+# Convert all response variables to numeric
+for column in response_variables:
+    df[column] = pd.to_numeric(df[column], errors='coerce')
+
+error_max = -50  
+type_1_error = {}
+# Iterate over each response variable column
+for column in response_variables:
+    response_variable = df[column]  # Get the column data
+
+    # Loop through the data while avoiding out-of-range indexing (type 1)
+    for i in range(len(response_variable) - 1):
+        error = response_variable.iloc[i] - response_variable.iloc[i+1] 
+        if error < error_max:
+            print(f"Error type 1 detected in {column} at voltage {df['Voltage step:'][i]} : {error}")
+
+    # Loop through the data while avoiding positive error (type 2)
+    for i in range(len(response_variable) - 1):
+        error = response_variable.iloc[i] - response_variable.iloc[i+1] 
+        if error > 15:
+            print(f"Error type 2 detected in {column} at voltage {df['Voltage step:'][i]} : {error}")
+plt.scatter(df['Voltage step:'], df['Dark current-r20.0'], alpha=0.7)
+plt.show()
